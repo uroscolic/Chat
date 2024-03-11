@@ -2,7 +2,6 @@ package server;
 
 import java.io.*;
 import java.net.Socket;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -14,15 +13,16 @@ public class ServerThread implements Runnable{
     private List<String> censuredWords = Server.censuredWords;
     private List<String> messages = Server.messages;
     private String username;
+    private final Object lock = new Object();
     private DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd, HH:mm:ss");
     public ServerThread(Socket socket) {
         this.socket =  socket;
     }
+    private PrintWriter out;
 
     @Override
     public void run() {
         String message;
-        PrintWriter out = null;
         BufferedReader in = null;
         try {
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -38,12 +38,16 @@ public class ServerThread implements Runnable{
             usernames.add(message);
             username = message;
             out.println("Welcome, " + message + "!");
-
-            for (String message1 : messages) {
-                System.out.println(message1);
-                out.println(message1);
+            Server.serverThreads.add(this);
+            synchronized (lock) {
+                sendMessageToAll(username + " has joined the chat.");
             }
+
+            for (String message1 : messages)
+                out.println(message1);
+
             out.println("END_OF-MESSAGE.HISTORY55638");
+
             while(true){
                 message = in.readLine();
                 if(message.equalsIgnoreCase("quit")){
@@ -51,7 +55,7 @@ public class ServerThread implements Runnable{
                     usernames.remove(username);
                     break;
                 }
-                censorMessage(message);
+                message = censorMessage(message);
                 messages.add(formatMessage(message));
                 if(messages.size() > 100){
                     messages.remove(0);
@@ -60,12 +64,16 @@ public class ServerThread implements Runnable{
                 out.println(formatMessage(message));
             }
 
+        } catch (IOException ignored) {
 
-        } catch (IOException e) {
-            if(username != null)
-                System.out.println(username + " disconnected!");
         }
         finally {
+            Server.serverThreads.remove(this);
+            synchronized (lock) {
+                for (ServerThread thread : Server.serverThreads) {
+                    thread.sendMessage(username + " has left the chat.");
+                }
+            }
             try {
                 if(out != null) out.close();
                 if(in != null) in.close();
@@ -75,13 +83,14 @@ public class ServerThread implements Runnable{
             }
         }
     }
-    private void censorMessage(String message) {
+    private String censorMessage(String message) {
         for (String word : censuredWords) {
             if (message.toLowerCase().contains(word.toLowerCase())) {
-                String censuredWord = word.substring(0, 1) + "*".repeat(Math.max(0, word.length() - 2)) + word.substring(word.length() - 1);
+                String censuredWord = word.charAt(0) + "*".repeat(Math.max(0, word.length() - 2)) + word.substring(word.length() - 1);
                 message = message.replace(word, censuredWord);
             }
         }
+        return message;
     }
     private String formatMessage(String message) {
         return LocalDateTime.now().format(formatter) + " - " + username + ": " + message;
@@ -96,5 +105,8 @@ public class ServerThread implements Runnable{
 
     public Socket getSocket() {
         return socket;
+    }
+    public void sendMessage(String message) {
+        out.println(message);
     }
 }

@@ -16,7 +16,6 @@ public class Server {
             ServerSocket serverSocket = new ServerSocket(PORT);
             while(true) {
                 ServerThread serverThread = new ServerThread(serverSocket.accept());
-                serverThreads.add(serverThread);
                 Thread thread = new Thread(serverThread);
                 thread.start();
             }

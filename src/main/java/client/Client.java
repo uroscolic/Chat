@@ -29,26 +29,50 @@ public class Client {
             System.out.println(message);
         }
 
-        while(!(message = in.readLine()).equals("END_OF-MESSAGE.HISTORY55638")){
+        while(!(message = in.readLine()).equals("END_OF-MESSAGE.HISTORY55638"))
             System.out.println(message);
-        }
 
-        while(true){
-            message = keyboard.readLine();
-            if(message.equalsIgnoreCase("quit")){
-                out.println(message);
-                message = in.readLine();
-                System.out.println(message);
-                in.close();
-                out.close();
-                socket.close();
-                break;
+
+        Thread readThread = new Thread(() -> {
+            try {
+                String line;
+                while (true) {
+                    line = in.readLine();
+                    if (line == null || line.startsWith("Goodbye"))
+                        break;
+                    System.out.println(line);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-            out.println(message);
-            System.out.println(in.readLine());
+        });
+        readThread.start();
 
+        Thread writeThread = new Thread(() -> {
+            try {
+                String userInput;
+                while (!(userInput = keyboard.readLine()).equals("quit"))
+                    out.println(userInput);
+
+                out.println(userInput);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+
+        writeThread.start();
+
+        try {
+            readThread.join();
+            writeThread.join();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
 
+        in.close();
+        out.close();
+        keyboard.close();
+        socket.close();
     }
 
     public static void main(String[] args) {
