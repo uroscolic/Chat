@@ -15,7 +15,6 @@ public class ServerThread implements Runnable{
     private List<String> messages = Server.messages;
     private List<ServerThread> serverThreads = Server.serverThreads;
     private String username;
-    private static final Object lock = new Object();
     private static final int historySize = 100;
     private DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd, HH:mm:ss");
     private PrintWriter out;
@@ -45,9 +44,8 @@ public class ServerThread implements Runnable{
             out.println("Welcome, " + message + "!");
 
             serverThreads.add(this);
-            synchronized (lock) {
-                sendMessageToAll(username + " has joined the chat.");
-            }
+
+            sendMessageToAll(username + " has joined the chat.");
 
             messages.iterator().forEachRemaining(out::println);
 
@@ -79,13 +77,13 @@ public class ServerThread implements Runnable{
                 serverThread.sendMessage(username + " has left the chat.\n"));
 
             if(out != null) out.close();
-            if(socket != null) {
+            if(socket != null)
                 try {
                     socket.close();
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
-            }
+
         }
     }
     private String censorMessage(String message) {
