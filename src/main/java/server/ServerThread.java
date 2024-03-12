@@ -69,8 +69,8 @@ public class ServerThread implements Runnable{
                 out.println(formatMessage(message));
             }
 
-        } catch (IOException ignored) {
-
+        } catch (IOException e) {
+            e.printStackTrace();
         }
         finally {
             serverThreads.remove(this);
