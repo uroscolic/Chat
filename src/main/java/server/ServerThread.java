@@ -4,6 +4,7 @@ import java.io.*;
 import java.net.Socket;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Iterator;
 import java.util.List;
 
 public class ServerThread implements Runnable{
@@ -12,20 +13,24 @@ public class ServerThread implements Runnable{
     private List<String> usernames = Server.usernames;
     private List<String> censuredWords = Server.censuredWords;
     private List<String> messages = Server.messages;
+    private List<ServerThread> serverThreads = Server.serverThreads;
     private String username;
-    private final Object lock = new Object();
+    private static final Object lock = new Object();
+    private static final int historySize = 100;
     private DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd, HH:mm:ss");
+    private PrintWriter out;
     public ServerThread(Socket socket) {
         this.socket =  socket;
     }
-    private PrintWriter out;
 
     @Override
     public void run() {
         String message;
-        BufferedReader in = null;
-        try {
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+        try (
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            )
+        {
             out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()),true);
             out.println("Enter your username:");
             message = in.readLine();
@@ -38,13 +43,13 @@ public class ServerThread implements Runnable{
             usernames.add(message);
             username = message;
             out.println("Welcome, " + message + "!");
-            Server.serverThreads.add(this);
+
+            serverThreads.add(this);
             synchronized (lock) {
                 sendMessageToAll(username + " has joined the chat.");
             }
 
-            for (String message1 : messages)
-                out.println(message1);
+            messages.iterator().forEachRemaining(out::println);
 
             out.println("END_OF-MESSAGE.HISTORY55638");
 
@@ -57,9 +62,9 @@ public class ServerThread implements Runnable{
                 }
                 message = censorMessage(message);
                 messages.add(formatMessage(message));
-                if(messages.size() > 100){
+                if(messages.size() > historySize)
                     messages.remove(0);
-                }
+
                 sendMessageToAll(formatMessage(message));
                 out.println(formatMessage(message));
             }
@@ -68,23 +73,25 @@ public class ServerThread implements Runnable{
 
         }
         finally {
-            Server.serverThreads.remove(this);
-            synchronized (lock) {
-                for (ServerThread thread : Server.serverThreads) {
-                    thread.sendMessage(username + " has left the chat.");
+            serverThreads.remove(this);
+
+            serverThreads.iterator().forEachRemaining(serverThread ->
+                serverThread.sendMessage(username + " has left the chat.\n"));
+
+            if(out != null) out.close();
+            if(socket != null) {
+                try {
+                    socket.close();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
                 }
-            }
-            try {
-                if(out != null) out.close();
-                if(in != null) in.close();
-                if(socket != null) socket.close();
-            } catch (IOException e) {
-                e.printStackTrace();
             }
         }
     }
     private String censorMessage(String message) {
-        for (String word : censuredWords) {
+        Iterator<String> iterator = censuredWords.iterator();
+        while (iterator.hasNext()) {
+            String word = iterator.next();
             if (message.toLowerCase().contains(word.toLowerCase())) {
                 String censuredWord = word.charAt(0) + "*".repeat(Math.max(0, word.length() - 2)) + word.substring(word.length() - 1);
                 message = message.replace(word, censuredWord);
@@ -96,15 +103,10 @@ public class ServerThread implements Runnable{
         return LocalDateTime.now().format(formatter) + " - " + username + ": " + message;
     }
     private void sendMessageToAll(String message) throws IOException {
-        for(ServerThread serverThread : Server.serverThreads){
-            if(serverThread != this){
-                serverThread.getSocket().getOutputStream().write((message + "\n").getBytes());
-            }
-        }
-    }
-
-    public Socket getSocket() {
-        return socket;
+        serverThreads.iterator().forEachRemaining(serverThread -> {
+            if (serverThread != this)
+                serverThread.sendMessage(message);
+        });
     }
     public void sendMessage(String message) {
         out.println(message);

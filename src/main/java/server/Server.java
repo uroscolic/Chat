@@ -1,15 +1,15 @@
 package server;
 
 import java.net.ServerSocket;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Server {
     public static final int PORT = 9082;
-    public static List<String> usernames = new ArrayList<>();
-    public static List<String> censuredWords = new ArrayList<>();
-    public static List<String> messages = new ArrayList<>();
-    public static List<ServerThread> serverThreads = new ArrayList<>();
+    public static List<String> usernames = new CopyOnWriteArrayList<>();
+    public static List<String> censuredWords = new CopyOnWriteArrayList<>();
+    public static List<String> messages = new CopyOnWriteArrayList<>();
+    public static List<ServerThread> serverThreads = new CopyOnWriteArrayList<>();
     public Server() {
         try {
             addCensuredWords();
